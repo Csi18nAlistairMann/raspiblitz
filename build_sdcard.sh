@@ -8,6 +8,98 @@
 # setup fresh SD card with image above - login per SSH and run this script:
 ##########################################################################
 
+# bitcoin.org Constants
+BITCOINCOREDOM="bitcoin.org"
+# UK users. At time of writing bitcoin.org is not serving some files to
+# downloaders who appear to be from the United Kingdom. If that's you, you may
+# try a mirror by uncommenting the next line - it will then supercede the line
+# above. Also change modeWifi's default to "GB", further down.
+# BITCOINCOREDOM="bitcoincore.org"
+BITCOINDOM="bitcoin.org"
+
+# Architectural Constants
+isARM=$(uname -m | grep -c 'arm')
+isAARCH64=$(uname -m | grep -c 'aarch64')
+isX86_64=$(uname -m | grep -c 'x86_64')
+if [ ${isARM} -eq 1 ] ; then
+  bitcoinOSversion="arm-linux-gnueabihf"
+  lndOSversion="armv7"
+fi
+if [ ${isAARCH64} -eq 1 ] ; then
+  bitcoinOSversion="aarch64-linux-gnu"
+  lndOSversion="arm64"
+fi
+if [ ${isX86_64} -eq 1 ] ; then
+  bitcoinOSversion="x86_64-linux-gnu"
+  lndOSversion="amd64"
+fi
+
+# Bitcoin Constants
+# set version (change if update is available)
+# https://bitcoincore.org/en/download/
+bitcoinVersion="0.21.0"
+bitcoinBinaryName="bitcoin-${bitcoinVersion}-${bitcoinOSversion}.tar.gz"
+bitcoinDownloadUrl="https://${BITCOINCOREDOM}/bin/bitcoin-core-${bitcoinVersion}/${bitcoinBinaryName}"
+
+# Lightning Constants
+## based on https://github.com/Stadicus/guides/blob/master/raspibolt/raspibolt_40_lnd.md#lightning-lnd
+## see LND releases: https://github.com/lightningnetwork/lnd/releases
+lndVersion="0.12.1-beta"
+lndBinaryName="lnd-linux-${lndOSversion}-v${lndVersion}.tar.gz"
+lndDownloadUrl="https://github.com/lightningnetwork/lnd/releases/download/v${lndVersion}/${lndBinaryName}"
+
+# Other Constants
+TOR_KEYSHASH="A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89"
+TOR_KEYSURL="https://deb.torproject.org/torproject.org/${TOR_KEYSHASH}.asc"
+LAANWJ_RELEASES_FILE="laanwj-releases.asc"
+SHA256SUMS_FILE="SHA256SUMS.asc"
+
+# PGP Keys
+#
+# olaoluwa
+#PGPauthor="roasbeef"
+#PGPpkeys="https://keybase.io/roasbeef/pgp_keys.asc"
+#PGPcheck="9769140D255C759B1EB77B46A96387A57CAAE94D"
+# bitconner
+PGPauthor="bitconner"
+PGPpkeys="https://keybase.io/bitconner/pgp_keys.asc"
+PGPcheck="9C8D61868A7C492003B2744EE7D737B67FA592C7"
+# Joost Jager
+#PGPauthor="joostjager"
+#PGPpkeys="https://keybase.io/joostjager/pgp_keys.asc"
+#PGPcheck="D146D0F68939436268FA9A130E26BB61B76C4D3A"
+
+#
+# Helpful functions
+#
+
+# downloader()
+# Attempt to quietly wget the given URL target into the provided filename.
+# If it fails warn the user and return an appropriate error code: the calling
+# code will decide what to do
+function downloader ()
+{
+    local HINT=$1
+    local TMPFILE=$2
+    local URL=$3
+
+    echo "Trying to download: $HINT"
+    wget -q $URL -O $TMPFILE
+    chmod a+r $TMPFILE
+    if [ $? -ne 0 ]; then
+	echo "Error trying to download $URL"
+	echo "Command was: wget -q $URL -O $TMPFILE"
+	return 1
+    fi
+    if [ ! -s $TMPFILE ]; then
+	echo "Zero-length file downloaded from $URL"
+	echo "Command was: wget -q $URL -O $TMPFILE"
+	return 1
+    fi
+    echo "Successful."
+    return 0
+}
+
 echo ""
 echo "*****************************************"
 echo "* RASPIBLITZ SD CARD IMAGE SETUP v1.7   *"
@@ -32,16 +124,16 @@ fi
 
 # 2nd optional paramater: FATPACK
 # -------------------------------
-# could be 'true' or 'false' (default)
+# could be 'true' (default) or 'false'
 # When 'true' it will pre-install needed frameworks for additional apps and features
-# as a convenience to safe on install and update time for additional apps.
+# as a convenience to save on install and update time for additional apps.
 # When 'false' it will just install the bare minimum and additional apps will just
 # install needed frameworks and libraries on demand when activated by user.
 # Use 'false' if you want to run your node without: go, dot-net, nodejs, docker, ...
 
 fatpack="$2"
 if [ ${#fatpack} -eq 0 ]; then
-  fatpack="false"
+  fatpack="true"
 fi
 if [ "${fatpack}" != "true" ] && [ "${fatpack}" != "false" ]; then
   echo "ERROR: FATPACK parameter needs to be either 'true' or 'false'"
@@ -53,7 +145,7 @@ fi
 # 3rd optional paramater: GITHUB-USERNAME
 # ---------------------------------------
 # could be any valid github-user that has a fork of the raspiblitz repo - 'rootzoll' is default
-# The 'raspiblitz' repo of this user is used to provisioning sd card 
+# The 'raspiblitz' repo of this user is used to provisioning sd card
 # with raspiblitz assets/scripts later on.
 # If this parameter is set also the branch needs to be given (see next parameter).
 githubUser="$3"
@@ -67,7 +159,7 @@ echo "3) will use GITHUB-USERNAME --> '${githubUser}'"
 # could be any valid branch of the given GITHUB-USERNAME forked raspiblitz repo - 'dev' is default
 githubBranch="$4"
 if [ ${#githubBranch} -eq 0 ]; then
-  githubBranch="dev"
+  githubBranch="v1.7"
 fi
 echo "4) will use GITHUB-BRANCH --> '${githubBranch}'"
 
@@ -78,7 +170,7 @@ echo "4) will use GITHUB-BRANCH --> '${githubBranch}'"
 # https://github.com/rootzoll/raspiblitz/issues/1265#issuecomment-813369284
 displayClass="$5"
 if [ ${#displayClass} -eq 0 ] || [ "${displayClass}" == "false" ]; then
-  displayClass="hdmi"
+  displayClass="lcd"
 fi
 if [ "${displayClass}" != "hdmi" ] && [ "${displayClass}" != "lcd" ] && [ "${displayClass}" != "headless" ]; then
   echo "ERROR: DISPLAY-CLASS parameter needs to be 'lcd', 'hdmi' or 'headless'"
@@ -118,9 +210,6 @@ echo "7) will use WIFI --> '${modeWifi}'"
 # AUTO-DETECTION: CPU-ARCHITECTURE
 # ---------------------------------------
 # keep in mind that DietPi for Raspberry is also a stripped down Raspbian
-isARM=$(uname -m | grep -c 'arm')
-isAARCH64=$(uname -m | grep -c 'aarch64')
-isX86_64=$(uname -m | grep -c 'x86_64')
 cpu="?"
 if [ ${isARM} -gt 0 ]; then
   cpu="arm"
@@ -183,15 +272,54 @@ echo "Building RaspiBlitz ..."
 echo ""
 sleep 3
 
+#
+# Handle downloads before committing to the rest of the script. We do this as a
+# later failure to download has been known to make the Raspberry Pi inoperable.
+TMP_SHA256=$(tempfile)
+downloader "the SHA256SUMS file" $TMP_SHA256 https://${BITCOINCOREDOM}/bin/bitcoin-core-${bitcoinVersion}/${SHA256SUMS_FILE}
+if [ $? -ne 0 ]; then
+    echo "== Alert! =="
+    echo "You may be being blocked from downloading this file. By editing the 'bitcoin.org Constants' section at the top of this file you can choose a mirror"
+    exit;
+fi
+
+TMP_TORKEYS=$(tempfile)
+downloader "the Tor Project keys" $TMP_TORKEYS $TOR_KEYSURL
+if [ $? -ne 0 ]; then exit; fi
+
+TMP_LAANWJ=$(tempfile)
+downloader "the LAANWJ Releases file" $TMP_LAANWJ https://${BITCOINDOM}/${LAANWJ_RELEASES_FILE}
+if [ $? -ne 0 ]; then exit; fi
+
+TMP_BIN=$(tempfile)
+downloader "the Bitcoin binary" $TMP_BIN ${bitcoinDownloadUrl} -O $TMP_BIN
+if [ $? -ne 0 ]; then exit; fi
+
+TMP_LMANIFEST=$(tempfile)
+downloader "the Lightning Manifest file" $TMP_LMANIFEST https://github.com/lightningnetwork/lnd/releases/download/v${lndVersion}/manifest-v${lndVersion}.txt
+if [ $? -ne 0 ]; then exit; fi
+
+TMP_LSIG=$(tempfile)
+downloader "the Lightning Manifest Sig file" $TMP_LSIG https://github.com/lightningnetwork/lnd/releases/download/v${lndVersion}/manifest-${PGPauthor}-v${lndVersion}.sig
+if [ $? -ne 0 ]; then exit; fi
+
+TMP_KEYBASEKEYS=$(tempfile)
+downloader "the Keybase keys" $TMP_KEYBASEKEYS ${PGPpkeys}
+if [ $? -ne 0 ]; then exit; fi
+
+TMP_LBIN=$(tempfile)
+downloader "the Lightning binary" $TMP_LBIN ${lndDownloadUrl}
+if [ $? -ne 0 ]; then exit; fi
+
 # INSTALL TOR
 echo "*** INSTALL TOR BY DEFAULT ***"
 echo ""
 sudo apt install -y dirmngr
 echo "*** Adding KEYS deb.torproject.org ***"
 # fix for v1.6 base image https://github.com/rootzoll/raspiblitz/issues/1906#issuecomment-755299759
-wget -qO- https://deb.torproject.org/torproject.org/A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89.asc | sudo gpg --import
-sudo gpg --export A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89 | sudo apt-key add -
-torKeyAvailable=$(sudo gpg --list-keys | grep -c "A3C4F0F979CAA22CDBA8F512EE8CBC9E886DDD89")
+cat $TMP_TORKEYS | sudo gpg --import
+sudo gpg --export $TOR_KEYSHASH | sudo apt-key add -
+torKeyAvailable=$(sudo gpg --list-keys | grep -c "$TOR_KEYSHASH")
 if [ ${torKeyAvailable} -eq 0 ]; then
   echo "!!! FAIL: Was not able to import deb.torproject.org key"
   exit 1
@@ -200,7 +328,7 @@ echo "- OK key added"
 
 echo "*** Adding Tor Sources to sources.list ***"
 torSourceListAvailable=$(sudo grep -c 'https://deb.torproject.org/torproject.org' /etc/apt/sources.list)
-echo "torSourceListAvailable=${torSourceListAvailable}"  
+echo "torSourceListAvailable=${torSourceListAvailable}"
 if [ ${torSourceListAvailable} -eq 0 ]; then
   echo "- adding TOR sources ..."
   if [ "${baseimage}" = "raspbian" ] || [ "${baseimage}" = "raspios_arm64" ] || [ "${baseimage}" = "armbian" ] || [ "${baseimage}" = "dietpi" ]; then
@@ -210,7 +338,7 @@ if [ ${torSourceListAvailable} -eq 0 ]; then
   elif [ "${baseimage}" = "ubuntu" ]; then
     echo "- using https://deb.torproject.org/torproject.org focal"
     echo "deb https://deb.torproject.org/torproject.org focal main" | sudo tee -a /etc/apt/sources.list
-    echo "deb-src https://deb.torproject.org/torproject.org focal main" | sudo tee -a /etc/apt/sources.list    
+    echo "deb-src https://deb.torproject.org/torproject.org focal main" | sudo tee -a /etc/apt/sources.list
   else
     echo "!!! FAIL: No Tor sources for os: ${baseimage}"
     exit 1
@@ -248,7 +376,7 @@ if [ "${baseimage}" = "raspbian" ] || [ "${baseimage}" = "dietpi" ] || \
     # remove unneccesary files
     sudo rm -rf /home/pi/MagPi
     # https://www.reddit.com/r/linux/comments/lbu0t1/microsoft_repo_installed_on_all_raspberry_pis/
-    sudo rm -f /etc/apt/sources.list.d/vscode.list 
+    sudo rm -f /etc/apt/sources.list.d/vscode.list
     sudo rm -f /etc/apt/trusted.gpg.d/microsoft.gpg
   fi
   if [ ! -f /etc/apt/sources.list.d/raspi.list ]; then
@@ -290,7 +418,7 @@ echo "*** PREPARE ${baseimage} ***"
 if [ "$(compgen -u | grep -c dietpi)" -gt 0 ];then
   echo "# Renaming dietpi user to pi"
   sudo usermod -l pi dietpi
-elif [ "$(compgen -u | grep -c pi)" -eq 0 ];then  
+elif [ "$(compgen -u | grep -c pi)" -eq 0 ];then
   echo "# Adding the user pi"
   sudo adduser --disabled-password --gecos "" pi
   sudo adduser pi sudo
@@ -299,7 +427,7 @@ fi
 # special prepare when Raspbian
 if [ "${baseimage}" = "raspbian" ]||[ "${baseimage}" = "raspios_arm64" ]||\
    [ "${baseimage}" = "debian_rpi64" ]; then
-  sudo apt install -y raspi-config 
+  sudo apt install -y raspi-config
   # do memory split (16MB)
   sudo raspi-config nonint do_memory_split 16
   # set to wait until network is available on boot (0 seems to yes)
@@ -613,7 +741,7 @@ blitzpy_wheel=$(ls -trR /home/admin/raspiblitz/home.admin/BlitzPy/dist | grep -E
 blitzpy_version=$(echo ${blitzpy_wheel} | grep -oE "([0-9]\.[0-9]\.[0-9])")
 echo ""
 echo "*** INSTALLING BlitzPy Version: ${blitzpy_version} ***"
-sudo -H /usr/bin/python -m pip install "/home/admin/raspiblitz/home.admin/BlitzPy/dist/${blitzpy_wheel}" >/dev/null 2>&1 
+sudo -H /usr/bin/python -m pip install "/home/admin/raspiblitz/home.admin/BlitzPy/dist/${blitzpy_wheel}" >/dev/null 2>&1
 
 # make sure lndlibs are patched for compatibility for both Python2 and Python3
 if ! grep -Fxq "from __future__ import absolute_import" /home/admin/config.scripts/lndlibs/rpc_pb2_grpc.py; then
@@ -706,7 +834,7 @@ sudo bash -c "echo '# end of pam-auth-update config' >> /etc/pam.d/common-sessio
 # *** fail2ban ***
 # based on https://stadicus.github.io/RaspiBolt/raspibolt_21_security.html
 echo "*** HARDENING ***"
-sudo apt install -y --no-install-recommends python3-systemd fail2ban 
+sudo apt install -y --no-install-recommends python3-systemd fail2ban
 
 # *** CACHE DISK IN RAM ***
 echo "Activating CACHE RAM DISK ... "
@@ -715,7 +843,7 @@ sudo /home/admin/config.scripts/blitz.cache.sh on
 # *** Wifi, Bluetooth & other configs ***
 if [ "${baseimage}" = "raspbian" ]||[ "${baseimage}" = "raspios_arm64"  ]||\
    [ "${baseimage}" = "debian_rpi64" ]; then
-   
+
   if [ "${modeWifi}" == "false" ]; then
     echo ""
     echo "*** DISABLE WIFI ***"
@@ -752,7 +880,7 @@ if [ "${baseimage}" = "raspbian" ]||[ "${baseimage}" = "raspios_arm64"  ]||\
   echo "*** DISABLE AUDIO (snd_bcm2835) ***"
   sudo sed -i "s/^dtparam=audio=on/# dtparam=audio=on/g" /boot/config.txt
   echo
-  
+
   # disable DRM VC4 V3D
   echo "*** DISABLE DRM VC4 V3D driver ***"
   dtoverlay=vc4-fkms-v3d
@@ -761,7 +889,7 @@ if [ "${baseimage}" = "raspbian" ]||[ "${baseimage}" = "raspios_arm64"  ]||\
 
   # I2C fix (make sure dtparam=i2c_arm is not on)
   # see: https://github.com/rootzoll/raspiblitz/issues/1058#issuecomment-739517713
-  sudo sed -i "s/^dtparam=i2c_arm=.*//g" /boot/config.txt 
+  sudo sed -i "s/^dtparam=i2c_arm=.*//g" /boot/config.txt
 fi
 
 # *** FATPACK *** (can be activated by parameter - see details at start of script)
@@ -794,7 +922,7 @@ if [ "${fatpack}" == "true" ]; then
   echo "*** FALLBACK NODE LIST ***"
   sudo -u admin curl -H "Accept: application/json; indent=4" https://bitnodes.io/api/v1/snapshots/latest/ -o /home/admin/fallback.nodes
   byteSizeList=$(sudo -u admin stat -c %s /home/admin/fallback.nodes)
-  if [ ${#byteSizeList} -eq 0 ] || [ ${byteSizeList} -lt 10240 ]; then 
+  if [ ${#byteSizeList} -eq 0 ] || [ ${byteSizeList} -lt 10240 ]; then
     echo "WARN: Failed downloading fresh FALLBACK NODE LIST --> https://bitnodes.io/api/v1/snapshots/latest/"
     sudo rm /home/admin/fallback.nodes 2>/dev/null
     sudo cp /home/admin/assets/fallback.nodes /home/admin/fallback.nodes
@@ -825,10 +953,6 @@ sudo systemctl enable background
 echo ""
 echo "*** PREPARING BITCOIN ***"
 
-# set version (change if update is available)
-# https://bitcoincore.org/en/download/
-bitcoinVersion="0.21.0"
-
 # needed to check code signing
 laanwjPGP="01EA5486DE18A882D4C2684590C8019E36C2E964"
 
@@ -838,14 +962,14 @@ sudo -u admin mkdir /home/admin/download
 cd /home/admin/download
 
 # download, check and import signer key
-sudo -u admin wget https://bitcoin.org/laanwj-releases.asc
-if [ ! -f "./laanwj-releases.asc" ]
+cp $TMP_LAANWJ ./${LAANWJ_RELEASES_FILE}
+if [ ! -f "./${LAANWJ_RELEASES_FILE}" ]
 then
-  echo "!!! FAIL !!! Download laanwj-releases.asc not success."
+  echo "!!! FAIL !!! Download ${LAANWJ_RELEASES_FILE} not success."
   exit 1
 fi
-gpg --import --import-options show-only ./laanwj-releases.asc
-fingerprint=$(gpg ./laanwj-releases.asc 2>/dev/null | grep "${laanwjPGP}" -c)
+gpg --import --import-options show-only ./${LAANWJ_RELEASES_FILE}
+fingerprint=$(gpg ./${LAANWJ_RELEASES_FILE} 2>/dev/null | grep "${laanwjPGP}" -c)
 if [ ${fingerprint} -lt 1 ]; then
   echo ""
   echo "!!! BUILD WARNING --> Bitcoin PGP author not as expected"
@@ -853,11 +977,11 @@ if [ ${fingerprint} -lt 1 ]; then
   echo "PRESS ENTER to TAKE THE RISK if you think all is OK"
   read key
 fi
-gpg --import ./laanwj-releases.asc
+gpg --import ./${LAANWJ_RELEASES_FILE}
 
 # download signed binary sha256 hash sum file and check
-sudo -u admin wget https://bitcoin.org/bin/bitcoin-core-${bitcoinVersion}/SHA256SUMS.asc
-verifyResult=$(gpg --verify SHA256SUMS.asc 2>&1)
+cp $TMP_SHA256 ${SHA256SUMS_FILE}
+verifyResult=$(gpg --verify ${SHA256SUMS_FILE} 2>&1)
 goodSignature=$(echo ${verifyResult} | grep 'Good signature' -c)
 echo "goodSignature(${goodSignature})"
 correctKey=$(echo ${verifyResult} |  grep "using RSA key ${laanwjPGP: -16}" -c)
@@ -875,37 +999,27 @@ else
 fi
 
 # get the sha256 value for the corresponding platform from signed hash sum file
-if [ ${isARM} -eq 1 ] ; then
-  bitcoinOSversion="arm-linux-gnueabihf"
-fi
-if [ ${isAARCH64} -eq 1 ] ; then
-  bitcoinOSversion="aarch64-linux-gnu"
-fi
-if [ ${isX86_64} -eq 1 ] ; then
-  bitcoinOSversion="x86_64-linux-gnu"
-fi
-bitcoinSHA256=$(grep -i "$bitcoinOSversion" SHA256SUMS.asc | cut -d " " -f1)
+bitcoinSHA256=$(grep -i "$bitcoinOSversion" ${SHA256SUMS_FILE} | cut -d " " -f1)
 
 echo ""
 echo "*** BITCOIN v${bitcoinVersion} for ${bitcoinOSversion} ***"
 
 # download resources
-binaryName="bitcoin-${bitcoinVersion}-${bitcoinOSversion}.tar.gz"
-if [ ! -f "./${binaryName}" ]; then
-   sudo -u admin wget https://bitcoin.org/bin/bitcoin-core-${bitcoinVersion}/${binaryName}
+if [ ! -f "./${bitcoinBinaryName}" ]; then
+   cp $TMP_BIN "./${bitcoinBinaryName}"
 fi
-if [ ! -f "./${binaryName}" ]; then
+if [ ! -f "./${bitcoinBinaryName}" ]; then
    echo "!!! FAIL !!! Download BITCOIN BINARY not success."
    exit 1
 else
   # check binary checksum test
   echo "- checksum test"
-  binaryChecksum=$(sha256sum ${binaryName} | cut -d " " -f1)
+  binaryChecksum=$(sha256sum ${bitcoinBinaryName} | cut -d " " -f1)
   echo "Valid SHA256 checksum should be: ${bitcoinSHA256}"
   echo "Downloaded binary SHA256 checksum: ${binaryChecksum}"
   if [ "${binaryChecksum}" != "${bitcoinSHA256}" ]; then
     echo "!!! FAIL !!! Downloaded BITCOIN BINARY not matching SHA256 checksum: ${bitcoinSHA256}"
-    rm -v ./${binaryName}
+    rm -v ./${bitcoinBinaryName}
     exit 1
   else
     echo ""
@@ -918,7 +1032,7 @@ else
 fi
 
 # install
-sudo -u admin tar -xvf ${binaryName}
+sudo -u admin tar -xvf ${bitcoinBinaryName}
 sudo install -m 0755 -o root -g root -t /usr/local/bin/ bitcoin-${bitcoinVersion}/bin/*
 sleep 3
 installed=$(sudo -u admin bitcoind --version | grep "${bitcoinVersion}" -c)
@@ -933,32 +1047,15 @@ echo ""
 echo "*** PREPARING LIGHTNING ***"
 
 # "*** LND ***"
-## based on https://github.com/Stadicus/guides/blob/master/raspibolt/raspibolt_40_lnd.md#lightning-lnd
-## see LND releases: https://github.com/lightningnetwork/lnd/releases
-lndVersion="0.12.1-beta"
-
-# olaoluwa
-#PGPauthor="roasbeef"
-#PGPpkeys="https://keybase.io/roasbeef/pgp_keys.asc"
-#PGPcheck="9769140D255C759B1EB77B46A96387A57CAAE94D"
-# bitconner
-PGPauthor="bitconner"
-PGPpkeys="https://keybase.io/bitconner/pgp_keys.asc"
-PGPcheck="9C8D61868A7C492003B2744EE7D737B67FA592C7"
-# Joost Jager
-#PGPauthor="joostjager"
-#PGPpkeys="https://keybase.io/joostjager/pgp_keys.asc"
-#PGPcheck="D146D0F68939436268FA9A130E26BB61B76C4D3A"
 
 # get LND resources
 cd /home/admin/download
 
 # download lnd binary checksum manifest
-sudo -u admin wget -N https://github.com/lightningnetwork/lnd/releases/download/v${lndVersion}/manifest-v${lndVersion}.txt
-
+cp $TMP_LMANIFEST "./manifest-v${lndVersion}.txt"
 # check if checksums are signed by lnd dev team
-sudo -u admin wget -N https://github.com/lightningnetwork/lnd/releases/download/v${lndVersion}/manifest-${PGPauthor}-v${lndVersion}.sig
-sudo -u admin wget --no-check-certificate -N -O "pgp_keys.asc" ${PGPpkeys}
+cp $TMP_LSIG "./manifest-${PGPauthor}-v${lndVersion}.sig"
+cp $TMP_KEYBASEKEYS "pgp_keys.asc"
 gpg --import --import-options show-only ./pgp_keys.asc
 fingerprint=$(sudo gpg "pgp_keys.asc" 2>/dev/null | grep "${PGPcheck}" -c)
 if [ ${fingerprint} -lt 1 ]; then
@@ -989,15 +1086,12 @@ fi
 
 # get the lndSHA256 for the corresponding platform from manifest file
 if [ ${isARM} -eq 1 ] ; then
-  lndOSversion="armv7"
   lndSHA256=$(grep -i "linux-$lndOSversion" manifest-v$lndVersion.txt | cut -d " " -f1)
 fi
 if [ ${isAARCH64} -eq 1 ] ; then
-  lndOSversion="arm64"
   lndSHA256=$(grep -i "linux-$lndOSversion" manifest-v$lndVersion.txt | cut -d " " -f1)
 fi
 if [ ${isX86_64} -eq 1 ] ; then
-  lndOSversion="amd64"
   lndSHA256=$(grep -i "linux-$lndOSversion" manifest-v$lndVersion.txt | cut -d " " -f1)
 fi
 
@@ -1007,11 +1101,9 @@ echo "SHA256 hash: $lndSHA256"
 echo ""
 
 # get LND binary
-binaryName="lnd-linux-${lndOSversion}-v${lndVersion}.tar.gz"
-if [ ! -f "./${binaryName}" ]; then
-  lndDownloadUrl="https://github.com/lightningnetwork/lnd/releases/download/v${lndVersion}/${binaryName}"
+if [ ! -f "./${lndBinaryName}" ]; then
   echo "- downloading lnd binary --> ${lndDownloadUrl}"
-  sudo -u admin wget ${lndDownloadUrl}
+  cp $TMP_LBIN "${lndBinaryName}"
   echo "- download done"
 else
   echo "- using existing lnd binary"
@@ -1019,13 +1111,13 @@ fi
 
 # check binary was not manipulated (checksum test)
 echo "- checksum test"
-binaryChecksum=$(sha256sum ${binaryName} | cut -d " " -f1)
+binaryChecksum=$(sha256sum ${lndBinaryName} | cut -d " " -f1)
 echo "Valid SHA256 checksum(s) should be: ${lndSHA256}"
 echo "Downloaded binary SHA256 checksum: ${binaryChecksum}"
 checksumCorrect=$(echo "${lndSHA256}" | grep -c "${binaryChecksum}")
 if [ "${checksumCorrect}" != "1" ]; then
   echo "!!! FAIL !!! Downloaded LND BINARY not matching SHA256 checksum in manifest: ${lndSHA256}"
-  rm -v ./${binaryName}
+  rm -v ./${lndBinaryName}
   exit 1
 else
   echo ""
@@ -1038,7 +1130,7 @@ fi
 
 # install
 echo "- install LND binary"
-sudo -u admin tar -xzf ${binaryName}
+sudo -u admin tar -xzf ${lndBinaryName}
 sudo install -m 0755 -o root -g root -t /usr/local/bin lnd-linux-${lndOSversion}-v${lndVersion}/*
 sleep 3
 installed=$(sudo -u admin lnd --version)
