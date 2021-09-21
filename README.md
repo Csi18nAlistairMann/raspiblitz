@@ -90,7 +90,9 @@ The cheapest way is to buy and assemble the single parts yourself. There are two
 
 ## Assemble your RaspiBlitz
 
-When you have all parts you need to:
+[Click here for detailed assembly instructions](Documentation/Physical-Assembly.md)
+
+Summary - When you have all parts you need to:
 
 - Assemble the Heatsink-Case on the RaspberryPi (follow the instructions in package).
 - Put the SSD/HDD into the Case and connect it per USB to the RaspberryPi (blue ports).
