@@ -113,7 +113,7 @@ There are two ways how you can install the RaspiBlitz software on your Raspberry
 |Difficulty level|Easy|Medium|
 |Pros|Make Blitz accessible to everyone|You don't need to trust us, build from your own forked repository|
 |Cons|You have to trust the mantainer image binaries|You need to read the build_sdcard.sh parameters in order for the customization to suit your needs|
-|Instructions|[Download image](https://raspiblitz.fulmo.org/images/raspiblitz-v1.7.0-2021-04-25.img.gz) and [Flash the sd card](README.md#write-the-sd-card-image-to-your-sd-card)|[Build your own sd card image](#build-the-sd-card-image)|
+|Instructions|[Download image](https://raspiblitz.fulmo.org/images/raspiblitz-v1.7.0-2021-04-25.img.gz) and [Flash the sd card](README.md#write-the-sd-card-image-to-your-sd-card)|[Build your own sd card image](Documentation/build-the-sd-card-image.md)|
 |Verify what?|[Signature file](https://raspiblitz.fulmo.org/images/raspiblitz-v1.7.0-2021-04-25.img.gz.sig) and [verify the Sig](FAQ.md#how-to-verify-the-sd-card-image-after-download) OR SHA-256 (below)|All of the code, don't trust, verify|
 
 If downloading the mantainer sd card image:
@@ -1123,29 +1123,6 @@ Now download the new RaspiBlitz SD card image and write it to your SD card. Yes,
 If done successfully, simply put the SD card into the RaspiBlitz and power on again. Then follow the instructions on the display ... and don't worry, you don't need to re-download the blockchain again. It is worth noting here that your SSH password will be reset to `raspiblitz`. You will be prompted to change this once the update is finished.
 
 * [Why do I need to re-burn my SD card for an update?](FAQ.md#why-do-i-need-to-re-burn-my-sd-card-for-an-update)
-
-## Build the SD Card Image
-
-A ready-to-use SD card image of RaspiBlitz is provided by us for download, to get everybody started quickly (see above). But if you want to build that image yourself - here is a quick guide:
-
-* Get a latest RaspiOS 64-bit: [DOWNLOAD](https://downloads.raspberrypi.org/raspios_arm64/images).
-* Write the image to an SD card: [TUTORIAL](https://www.raspberrypi.org/documentation/installation/installing-images/README.md).
-* Add a file called `ssh` to the root of the SD card when mounted on your laptop to enable SSH login.
-* Start the card on a Raspi and login via SSH with `ssh pi@[IP-OF-YOUR-RASPI]`. Password is `raspberry`.
-
-Now you are ready to start the SD card build script (check the code to see if the installation and config are OK for you). Copy the following command into your terminal and execute:
-
-`wget https://raw.githubusercontent.com/rootzoll/raspiblitz/v1.7/build_sdcard.sh && sudo bash build_sdcard.sh`
-
-As you can see from the URL, you can find the build script in this Git repo under `build_sdcard.sh`. You can check what gets installed and configured in detail. Feel free to post improvements as pull requests.
-
-The whole build process takes a while. At the end the LCD drivers get installed and a reboot is needed. A user `admin` is created during the process. Remember the default password is now `raspiblitz`. You can login per SSH again - this time use admin: `ssh admin@[IP-OF-YOUR-RASPI]`. The install dialog of the RaspiBlitz should automatically start. If you do not want to continue with the installation at this moment and use this sd card as a template for setting up multiple RaspiBlitzes, click `Cancel` and run `/home/admin/XXprepareRelease.sh`. Once you see the LCD going white and the activity LED of the pi starts going dark, you can unplug power and remove the SD card. You have now built your own RaspiBlitz SD card image.
-
-*Note: If you plan to use your self-build sd card as a MASTER copy and distribute it: Use a smaller 8GB card for that. This way it's ensured that it will fit on every 16 GB card recommended for RaspiBlitz later on.*
-
-* [Can I run RaspiBlitz on other computers than RaspberryPi?](FAQ.md#can-i-run-raspiblitz-on-other-computers-than-raspberrypi)
-* [How can I build an SD card other than the master branch?](FAQ.md#how-can-i-build-an-sd-card-other-then-the-master-branch)
-* [How can I build an SD card from my forked GitHub Repo?](FAQ.md#how-can-i-build-an-sd-card-from-my-forked-github-repo)
 
 ## FAQ
 
